@@ -67,14 +67,12 @@ void loop(void) {
     }
 
     float temperature = mapf(rawTemperature, sensor.calibLow, sensor.calibHigh, REFERENCE_LOW, REFERENCE_HIGH);
-
-    // Prime average value for starting
     if (sensor.temperatureAvg == 0.00) {
+      // Prime average value for starting
       sensor.temperatureAvg = temperature;
     }
     
     float temperatureAvg = TEMPERATURE_EXP_SMOOTH_ALPHA * (float) temperature + (1.0 - TEMPERATURE_EXP_SMOOTH_ALPHA) * sensor.temperatureAvg;
-
     if (abs(sensor.temperatureAvg - temperatureAvg) > TEMPERATURE_EPSILON_K) {
       sensor.temperature = temperature;
       sensor.temperatureAvg = temperatureAvg;
