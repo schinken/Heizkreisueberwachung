@@ -10,8 +10,10 @@ DallasTemperature sensors(&oneWire);
 WiFiClient wifiClient;
 PubSubClient mqttClient;
 
-char buffer[64];
+char buffer[128];
 char topic[64], value[12];
+
+unsigned long lastTemperatureReadMs = 0;
 
 t_TemperatureSensor Sensors[] = {
   { {0x28, 0xFF, 0x28, 0xCB, 0x43, 0x16, 0x04, 0xD1}, "flow",          98.500, -0.225, 0.000, 0.000 },
@@ -53,9 +55,17 @@ void setup(void) {
 
 void loop(void) { 
   mqttConnect();
+    
+  if (millis() - lastTemperatureReadMs > TEMPERATURE_UPDATE_INTERVAL_MS) {
+    lastTemperatureReadMs = millis();
+    readTemperatureSensors();
+  }
+
   mqttClient.loop();
   ArduinoOTA.handle();
-  
+}
+
+void readTemperatureSensors() {
   sensors.requestTemperatures(); 
 
   for(auto &sensor : Sensors) {
@@ -67,13 +77,9 @@ void loop(void) {
     }
 
     float temperature = mapf(rawTemperature, sensor.calibLow, sensor.calibHigh, REFERENCE_LOW, REFERENCE_HIGH);
-    if (sensor.temperatureAvg == 0.00) {
-      // Prime average value for starting
-      sensor.temperatureAvg = temperature;
-    }
+    float temperatureAvg = (TEMPERATURE_EXP_SMOOTH_ALPHA * temperature) + (1.0 - TEMPERATURE_EXP_SMOOTH_ALPHA) * sensor.temperatureAvg;
     
-    float temperatureAvg = TEMPERATURE_EXP_SMOOTH_ALPHA * (float) temperature + (1.0 - TEMPERATURE_EXP_SMOOTH_ALPHA) * sensor.temperatureAvg;
-    if (abs(sensor.temperatureAvg - temperatureAvg) > TEMPERATURE_EPSILON_K) {
+    if (fabs(sensor.temperatureAvg - temperatureAvg) > TEMPERATURE_EPSILON_K) {
       sensor.temperature = temperature;
       sensor.temperatureAvg = temperatureAvg;
       
@@ -83,9 +89,6 @@ void loop(void) {
     sprintf(buffer, "%-15s\t%.3f\t%.3f\n", sensor.name, temperature, rawTemperature);    
     Serial.print(buffer);
   }
-  
-  Serial.println("------------------------");
-  delay(2500);
 }
 
 
